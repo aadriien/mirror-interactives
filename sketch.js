@@ -1,6 +1,7 @@
 let rooms = [];
 let selectedRoom = null;
 let selectedComponent = null;
+let pendingRayStart = null;
 
 let dragOffset;
 let isDraggingRoom = false;
@@ -64,50 +65,62 @@ class Room {
 
     drawReflected() {
         if (!this.mirrors.length || !showReflection || this.isVirtual) return;
-
+    
         const offset = 20;
-
-        for (let mirrorSide of this.mirrors) {
-            let virtual;
-
-            switch (mirrorSide) {
+    
+        for (let side of this.mirrors) {
+            let virtualX = this.x;
+            let virtualY = this.y;
+            let mirrorX, mirrorY;
+    
+            switch (side) {
                 case "right":
-                    virtual = new Room(this.x + this.w + offset, this.y, this.w, this.h);
+                    mirrorX = this.x + this.w;
+                    virtualX = mirrorX + offset;
                     break;
                 case "left":
-                    virtual = new Room(this.x - this.w - offset, this.y, this.w, this.h);
+                    mirrorX = this.x;
+                    virtualX = mirrorX - this.w - offset;
                     break;
                 case "top":
-                    virtual = new Room(this.x, this.y - this.h - offset, this.w, this.h);
+                    mirrorY = this.y;
+                    virtualY = mirrorY - this.h - offset;
                     break;
                 case "bottom":
-                    virtual = new Room(this.x, this.y + this.h + offset, this.w, this.h);
+                    mirrorY = this.y + this.h;
+                    virtualY = mirrorY + offset;
                     break;
             }
-
-            if (!virtual) continue;
-
-            virtual.isVirtual = true;
-
+    
+            let virtualRoom = new Room(virtualX, virtualY, this.w, this.h);
+            virtualRoom.isVirtual = true;
+    
             for (let comp of this.components) {
-                if (!comp.getReflected) continue;
+                if (comp.getReflected) {
+                    let reflectedComp;
+                    if (side === "right" || side === "left") {
+                        let dx = mirrorX - comp.pos.x;
 
-                let reflected;
-                if (mirrorSide === "left" || mirrorSide === "right") {
-                    let mirrorX = mirrorSide === "right" ? this.x + this.w : this.x;
-                    let dx = mirrorX - comp.pos.x;
-                    reflected = comp.getReflected(mirrorX + dx, comp.pos.y);
-                } 
-                else {
-                    let mirrorY = mirrorSide === "bottom" ? this.y + this.h : this.y;
-                    let dy = mirrorY - comp.pos.y;
-                    reflected = comp.getReflected(comp.pos.x, mirrorY + dy);
+                        let reflectedX = mirrorX + dx;
+                        reflectedX += side === "right" ? offset : -offset;
+
+                        let reflectedY = comp.pos.y;
+    
+                        reflectedComp = comp.getReflected(reflectedX, reflectedY);
+                    } 
+                    else {
+                        let dy = mirrorY - comp.pos.y;
+                        let reflectedX = comp.pos.x;
+
+                        let reflectedY = mirrorY + dy;
+                        reflectedY += side === "bottom" ? offset : -offset;
+    
+                        reflectedComp = comp.getReflected(reflectedX, reflectedY);
+                    }
+                    virtualRoom.addComponent(reflectedComp);
                 }
-
-                if (reflected) virtual.addComponent(reflected);
             }
-
-            virtual.draw();
+            virtualRoom.draw();
         }
     }
 
@@ -183,7 +196,20 @@ class RayLink extends Component {
         stroke(255, 150, 0);
         strokeWeight(2);
         line(this.source.pos.x, this.source.pos.y, this.target.pos.x, this.target.pos.y);
-    }
+    
+        // Draw arrowhead
+        let angle = atan2(this.target.pos.y - this.source.pos.y, this.target.pos.x - this.source.pos.x);
+        let len = 10;
+
+        push();
+        translate(this.target.pos.x, this.target.pos.y);
+        rotate(angle);
+
+        fill(255, 150, 0);
+        noStroke();
+        triangle(0, 0, -len, -len / 2, -len, len / 2);
+        pop();
+    }    
 }
 
 // ------------------ p5 Setup --------------------
@@ -239,6 +265,18 @@ function mousePressed() {
         }
     }
 
+    if (selectedComponent && selectedComponent.type === 'object') {
+        pendingRayStart = selectedComponent;
+        return;
+    }
+    
+    if (pendingRayStart && selectedComponent && selectedComponent.type === 'eye') {
+        let ray = new RayLink(pendingRayStart, selectedComponent);
+        selectedRoom.addComponent(ray);
+        pendingRayStart = null;
+        return;
+    }    
+
     for (let room of rooms) {
         if (!room.isVirtual && room.isInside(mouseX, mouseY)) {
             selectedRoom = room;
@@ -259,7 +297,8 @@ function mouseDragged() {
         let newX = constrain(mouseX - dragOffset.x, room.x + 10, room.x + room.w - 10);
         let newY = constrain(mouseY - dragOffset.y, room.y + 10, room.y + room.h - 10);
         selectedComponent.pos.set(newX, newY);
-    } else if (isDraggingRoom && selectedRoom) {
+    } 
+    else if (isDraggingRoom && selectedRoom) {
         let newX = mouseX - dragOffset.x;
         let newY = mouseY - dragOffset.y;
         let dx = newX - selectedRoom.x;
@@ -341,7 +380,7 @@ function updateRoomSelector() {
 function selectRoomFromDropdown() {
     let roomSelect = document.getElementById('roomSelector');
     let idx = parseInt(roomSelect.value);
-    
+
     if (!isNaN(idx) && rooms[idx]) {
         selectedRoom = rooms[idx];
     }
