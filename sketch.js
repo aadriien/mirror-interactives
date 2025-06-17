@@ -1,6 +1,7 @@
 let components = [];
 let selected = null;
 let dragOffset;
+let showReflection = true;
 
 function setup() {
     // Toolbar at 40px currently
@@ -20,7 +21,7 @@ function draw() {
         let mirrorX = mirror.pos.x;
         
         for (let comp of components) {
-            if (comp.displayReflected) {
+            if (comp.displayReflected && showReflection) {
                 comp.displayReflected(mirrorX);
             }
         }
@@ -84,7 +85,7 @@ function addObject() {
 }
 
 function addEye() {
-    components.push(new Eye(createVector(width / 2 + 100, height / 2)));
+    components.push(new Eye(createVector(width / 2 - 100, height / 2 + 100)));
 }
 
 function addRayFromObjectToEye() {
@@ -97,6 +98,10 @@ function addRayFromObjectToEye() {
     }
     
     components.push(new RayLink(source, target));
+}
+
+function showHideReflection() {
+    showReflection = !showReflection;
 }
 
 
@@ -177,42 +182,6 @@ class Eye {
 }
 
 
-class Ray {
-    constructor(source, endPos) {
-        this.source = source; 
-        this.endPos = endPos.copy(); 
-        this.type = 'ray';
-    }
-    
-    get start() {
-        return this.source.pos.copy();
-    }
-    
-    display() {
-        stroke(255, 150, 0);
-        strokeWeight(2);
-        line(this.start.x, this.start.y, this.endPos.x, this.endPos.y);
-    }
-    
-    displayReflected(mirrorX) {
-        let startR = createVector(2 * mirrorX - this.start.x, this.start.y);
-        let endR = createVector(2 * mirrorX - this.endPos.x, this.endPos.y);
-        
-        stroke(100);
-        drawingContext.setLineDash([4, 4]);
-        line(startR.x, startR.y, endR.x, endR.y);
-        drawingContext.setLineDash([]);
-    }
-    
-    isHit(x, y) {
-        let d1 = dist(x, y, this.start.x, this.start.y);
-        let d2 = dist(x, y, this.endPos.x, this.endPos.y);
-        let len = dist(this.start.x, this.start.y, this.endPos.x, this.endPos.y);
-        return abs(d1 + d2 - len) < 5;
-    }
-}
-
-
 class RayLink {
     constructor(source, target) {
         this.source = source; // ObjectMarker
@@ -221,22 +190,20 @@ class RayLink {
     }
     
     display() {
-        // Direct orange ray from source to target
-        stroke(255, 150, 0);
-        strokeWeight(2);
-        line(this.source.pos.x, this.source.pos.y, this.target.pos.x, this.target.pos.y);
-        
         // Find mirrors between source & target horizontally
         let mirrors = components
-        .filter(c => c.type === 'mirror')
-        .filter(m => {
-            let x = m.pos.x;
-            return (x > Math.min(this.source.pos.x, this.target.pos.x)) && (x < Math.max(this.source.pos.x, this.target.pos.x));
-        })
-        .sort((a, b) => a.pos.x - b.pos.x);  
+            .filter(c => c.type === 'mirror')
+            .filter(m => {
+                let x = m.pos.x;
+                return (x > Math.min(this.source.pos.x, this.target.pos.x)) && (x < Math.max(this.source.pos.x, this.target.pos.x));
+            })
+            .sort((a, b) => a.pos.x - b.pos.x);  
         
         if (mirrors.length === 0) {
-            // No mirrors, no reflected rays to draw
+            // No mirrors, no reflected rays to draw (just orange direct)
+            stroke(255, 150, 0);
+            strokeWeight(2);
+            line(this.source.pos.x, this.source.pos.y, this.target.pos.x, this.target.pos.y);
             return;
         }
         
