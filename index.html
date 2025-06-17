@@ -28,11 +28,16 @@
 </head>
 <body>
     <div id="toolbar">
+        <select id="roomSelector" onchange="selectRoomFromDropdown()"></select>
+
+        <button onclick="addRoom()">Add Room</button>
         <button onclick="addMirror()">Add Mirror</button>
+
         <button onclick="addObject()">Add Object</button>
         <button onclick="addEye()">Add Eye</button>
-        <button onclick="addRayFromObjectToEye()">Add Ray (Object → Eye)</button>
-        <button onclick="showHideReflection()">Toggle Reflection</button>
+        <button onclick="addRay()">Add Ray (Object → Eye)</button>
+        
+        <button onclick="toggleReflection()">Toggle Reflection</button>
     </div>
 </body>
 </html>

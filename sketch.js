@@ -1,151 +1,87 @@
-let components = [];
-let selected = null;
+let rooms = [];
+let selectedRoom = null;
+let selectedComponent = null;
+
 let dragOffset;
+let isDraggingRoom = false;
 let showReflection = true;
 
-function setup() {
-    // Toolbar at 40px currently
-    createCanvas(windowWidth, windowHeight - 40); 
-}
 
-function draw() {
-    background(255);
-    
-    // Draw real components (real room)
-    for (let comp of components) {
-        comp.display();
+// -------------------- Classes --------------------
+
+class Room {
+    constructor(x, y, w = 200, h = 200) {
+        this.x = x;
+        this.y = y;
+        this.w = w;
+        this.h = h;
+        this.components = [];
+        this.hasRightMirror = false;
+        this.isVirtual = false;
     }
     
-    // Draw virtual reflections from mirrors
-    for (let mirror of components.filter(c => c.type === 'mirror')) {
-        let mirrorX = mirror.pos.x;
-        
-        for (let comp of components) {
-            if (comp.displayReflected && showReflection) {
-                comp.displayReflected(mirrorX);
-            }
-        }
-    }
-}
-
-
-function mousePressed() {
-    // Only test components that are draggable
-    for (let i = components.length - 1; i >= 0; i--) {
-        let comp = components[i];
-        
-        if (typeof comp.isHit === 'function' && comp.pos) {
-            if (comp.isHit(mouseX, mouseY)) {
-                selected = comp;
-                dragOffset = createVector(
-                    mouseX - comp.pos.x,
-                    mouseY - comp.pos.y
-                );
-                return;
-            }
-        }
-    }
-    selected = null;
-}
-
-
-function mouseDragged() {
-    if (selected) {
-        selected.pos.x = mouseX - dragOffset.x;
-        selected.pos.y = mouseY - dragOffset.y;
-    }
-}
-
-function mouseReleased() {
-    selected = null;
-}
-
-// ----------------------------
-// Component Constructors
-// ----------------------------
-
-function addMirror() {
-    components.push({
-        type: 'mirror',
-        pos: createVector(width / 2, height / 2),
-        display() {
-            stroke(100);
-            strokeWeight(3);
-            line(this.pos.x, 0, this.pos.x, height);
-        },
-        isHit(mx, my) {
-            return abs(mx - this.pos.x) < 5;
-        }
-    });
-}
-
-
-function addObject() {
-    components.push(new ObjectMarker(createVector(width / 2 - 100, height / 2)));
-}
-
-function addEye() {
-    components.push(new Eye(createVector(width / 2 - 100, height / 2 + 100)));
-}
-
-function addRayFromObjectToEye() {
-    let source = components.find(c => c.type === 'object');
-    let target = components.find(c => c.type === 'eye');
-    
-    if (!source || !target) {
-        alert("Need both an object and an eye to add a ray!");
-        return;
+    addComponent(comp) {
+        comp.room = this;
+        this.components.push(comp);
     }
     
-    components.push(new RayLink(source, target));
-}
-
-function showHideReflection() {
-    showReflection = !showReflection;
-}
-
-
-// ----------------------------
-// Component Classes
-// ----------------------------
-
-class Mirror {
-    constructor(pos) {
-        this.pos = pos;
-    }
-    
-    display() {
-        stroke(0);
-        strokeWeight(4);
-        line(this.pos.x, 0, this.pos.x, height);
-    }
-    
-    isHit(x, y) {
-        return abs(x - this.pos.x) < 5;
-    }
-}
-
-class ObjectMarker {
-    constructor(pos) {
-        this.pos = pos;
-        this.type = 'object';
-    }
-    
-    display() {
-        fill(255, 100, 100);
-        noStroke();
-        ellipse(this.pos.x, this.pos.y, 20);
-    }
-    
-    displayReflected(mirrorX) {
-        let reflectedX = 2 * mirrorX - this.pos.x;
+    draw() {
+        stroke(this === selectedRoom ? 'orange' : 0);
+        strokeWeight(2);
         noFill();
-        stroke(0);
-        strokeWeight(1);
+        rect(this.x, this.y, this.w, this.h);
         
-        drawingContext.setLineDash([4, 4]);
-        ellipse(reflectedX, this.pos.y, 20);
-        drawingContext.setLineDash([]);
+        noStroke();
+        fill(0);
+        textAlign(LEFT, TOP);
+        textSize(12);
+        text(this.isVirtual ? "Virtual Room" : "Real Room", this.x + 5, this.y + 5);
+        
+        if (this.hasRightMirror && !this.isVirtual) {
+            stroke(0, 0, 255);
+            strokeWeight(3);
+            line(this.x + this.w, this.y, this.x + this.w, this.y + this.h);
+        }
+        
+        for (let comp of this.components) comp.draw();
+    }
+    
+    drawReflected() {
+        if (!this.hasRightMirror || !showReflection) return;
+        
+        const offset = 20;
+        const virtualX = this.x + this.w + offset;
+        
+        let virtual = new Room(virtualX, this.y, this.w, this.h);
+        virtual.isVirtual = true;
+        
+        for (let comp of this.components) {
+            if (comp.getReflected) {
+                const mirrorX = this.x + this.w;
+                virtual.addComponent(comp.getReflected(mirrorX));
+            }
+        }
+        virtual.draw();
+    }
+    
+    isInside(x, y) {
+        return x >= this.x && x <= this.x + this.w && y >= this.y && y <= this.y + this.h;
+    }
+    
+    move(dx, dy) {
+        this.x += dx;
+        this.y += dy;
+        for (let comp of this.components) {
+            comp.pos.x += dx;
+            comp.pos.y += dy;
+        }
+    }
+}
+
+class Component {
+    constructor(x, y) {
+        this.pos = createVector(x, y);
+        this.room = null;
     }
     
     isHit(x, y) {
@@ -153,93 +89,225 @@ class ObjectMarker {
     }
 }
 
+class ObjectMarker extends Component {
+    constructor(x, y) {
+        super(x, y);
+        this.type = 'object';
+    }
+    
+    draw() {
+        fill(255, 100, 100);
+        noStroke();
+        ellipse(this.pos.x, this.pos.y, 20);
+    }
+    
+    getReflected(mirrorX) {
+        let dx = mirrorX - this.pos.x;
+        return new ObjectMarker(mirrorX + dx, this.pos.y);
+    }
+}
 
-class Eye {
-    constructor(pos) {
-        this.pos = pos;
+class Eye extends Component {
+    constructor(x, y) {
+        super(x, y);
         this.type = 'eye';
     }
     
-    display() {
-        textSize(24);
+    draw() {
         textAlign(CENTER, CENTER);
-        text("👁️", this.pos.x, this.pos.y);
+        textSize(20);
+        text("\uD83D\uDC41\uFE0F", this.pos.x, this.pos.y);
     }
     
-    displayReflected(mirrorX) {
-        let reflectedX = 2 * mirrorX - this.pos.x;
-        textSize(24);
-        textAlign(CENTER, CENTER);
-        
-        drawingContext.setLineDash([4, 4]);
-        text("👁️", reflectedX, this.pos.y);
-        drawingContext.setLineDash([]);
+    getReflected(mirrorX) {
+        let dx = mirrorX - this.pos.x;
+        return new Eye(mirrorX + dx, this.pos.y);
+    }
+}
+
+class RayLink extends Component {
+    constructor(source, target) {
+        super(0,0);
+        this.source = source;
+        this.target = target;
+        this.type = 'ray';
     }
     
-    isHit(x, y) {
-        return dist(x, y, this.pos.x, this.pos.y) < 15;
+    draw() {
+        stroke(255, 150, 0);
+        strokeWeight(2);
+        line(this.source.pos.x, this.source.pos.y, this.target.pos.x, this.target.pos.y);
     }
 }
 
 
-class RayLink {
-    constructor(source, target) {
-        this.source = source; // ObjectMarker
-        this.target = target; // Eye
-        this.type = 'raylink';
+// ------------------ p5 Canvas Setup --------------------
+
+function setup() {
+    createCanvas(windowWidth, windowHeight - 60);
+    addRoom(); // add starter room
+    updateRoomSelector();
+    textFont('Arial');
+}
+
+function draw() {
+    background(240);
+    for (let room of rooms) {
+        room.draw();
+        if (!room.isVirtual) room.drawReflected();
+    }
+}
+
+
+// -------------------- Mouse Events --------------------
+
+function mousePressed() {
+    selectedComponent = null;
+    isDraggingRoom = false;
+    
+    for (let room of rooms) {
+        if (room.isVirtual) continue;
+        for (let comp of room.components) {
+            // Be sure to select rooms of component
+            if (comp.isHit(mouseX, mouseY)) {
+                selectedComponent = comp;
+                selectedRoom = room;
+
+                dragOffset = createVector(mouseX - comp.pos.x, mouseY - comp.pos.y);
+                updateRoomSelector();
+                return;
+            }
+        }
     }
     
-    display() {
-        // Find mirrors between source & target horizontally
-        let mirrors = components
-            .filter(c => c.type === 'mirror')
-            .filter(m => {
-                let x = m.pos.x;
-                return (x > Math.min(this.source.pos.x, this.target.pos.x)) && (x < Math.max(this.source.pos.x, this.target.pos.x));
-            })
-            .sort((a, b) => a.pos.x - b.pos.x);  
-        
-        if (mirrors.length === 0) {
-            // No mirrors, no reflected rays to draw (just orange direct)
-            stroke(255, 150, 0);
-            strokeWeight(2);
-            line(this.source.pos.x, this.source.pos.y, this.target.pos.x, this.target.pos.y);
+    // If no component hit, check rooms
+    selectedRoom = null;
+    for (let room of rooms) {
+        if (!room.isVirtual && room.isInside(mouseX, mouseY)) {
+            selectedRoom = room;
+            dragOffset = createVector(mouseX - room.x, mouseY - room.y);
+            isDraggingRoom = true;
+            updateRoomSelector();
             return;
         }
-        
-        // Build points array: start with source position
-        let points = [this.source.pos.copy()];
-        
-        // Add mirror hit points (same y as source for simplicity)
-        for (let m of mirrors) {
-            points.push(createVector(m.pos.x, this.source.pos.y));
-        }
-        
-        // End with target position
-        points.push(this.target.pos.copy());
-        
-        // Draw reflected ray segments in blue
-        stroke(0, 150, 255);
-        strokeWeight(2);
-        for (let i = 0; i < points.length - 1; i++) {
-            line(points[i].x, points[i].y, points[i + 1].x, points[i + 1].y);
-        }
-        
-        // Draw virtual backtraces (dashed lines)
-        stroke(100);
-        drawingContext.setLineDash([4, 4]);
-        for (let i = 1; i < points.length - 1; i++) {
-            let mirrorX = points[i].x;
-            let nextPoint = points[i + 1];
-            let virtualX = 2 * mirrorX - nextPoint.x;
-            line(points[i].x, points[i].y, virtualX, nextPoint.y);
-        }
-        drawingContext.setLineDash([]);
+    }
+    
+    // If nothing selected, then null
+    selectedRoom = null;
+    selectedComponent = null;
+    updateRoomSelector();
+}
+
+function mouseDragged() {
+    if (selectedComponent && selectedComponent.room) {
+        let room = selectedComponent.room;
+        let newX = constrain(mouseX - dragOffset.x, room.x + 10, room.x + room.w - 10);
+        let newY = constrain(mouseY - dragOffset.y, room.y + 10, room.y + room.h - 10);
+        selectedComponent.pos.set(newX, newY);
+    } 
+    else if (isDraggingRoom && selectedRoom) {
+        let newX = mouseX - dragOffset.x;
+        let newY = mouseY - dragOffset.y;
+
+        let dx = newX - selectedRoom.x;
+        let dy = newY - selectedRoom.y;
+        selectedRoom.move(dx, dy);
     }
 }
+
+function mouseReleased() {
+    selectedComponent = null;
+    isDraggingRoom = false;
+}
+
+
+// -------------------- UI Button Functions --------------------
+
+function addRoom() {
+    let x = 50 + rooms.length * 250;
+    let y = 100;
+    let room = new Room(x, y);
+    rooms.push(room);
+    selectedRoom = room;
+    updateRoomSelector();
+}
+
+function addObject() {
+    if (!selectedRoom) {
+        alert("Please select a room first.");
+        return;
+    }
+    selectedRoom.addComponent(new ObjectMarker(selectedRoom.x + 50, selectedRoom.y + 100));
+}
+
+function addEye() {
+    if (!selectedRoom) {
+        alert("Please select a room first.");
+        return;
+    }
+    selectedRoom.addComponent(new Eye(selectedRoom.x + 150, selectedRoom.y + 100));
+}
+
+function addMirror() {
+    if (!selectedRoom) {
+        alert("Please select a room first.");
+        return;
+    }
+    selectedRoom.hasRightMirror = true;
+}
+
+function addRay() {
+    if (!selectedRoom) {
+        alert("Please select a room first.");
+        return;
+    }
+    let obj = selectedRoom.components.find(c => c.type === 'object');
+    let eye = selectedRoom.components.find(c => c.type === 'eye');
+    if (obj && eye) {
+        selectedRoom.addComponent(new RayLink(obj, eye));
+    } else {
+        alert("You need an object and an eye in the room.");
+    }
+}
+
+function toggleReflection() {
+    showReflection = !showReflection;
+}
+
+
+// -------------------- Room Selector UI --------------------
+
+function updateRoomSelector() {
+    let roomSelect = document.getElementById('roomSelector');
+    if (!roomSelect) return;
+    roomSelect.innerHTML = '';
+
+    rooms.forEach((room, i) => {
+        let option = document.createElement('option');
+        option.value = i;
+        option.text = `Room ${i + 1} ${room.isVirtual ? '(Virtual)' : ''}`;
+        roomSelect.appendChild(option);
+    });
     
+    // Ensure selectedRoom is set if null
+    if (!selectedRoom && rooms.length > 0) {
+        selectedRoom = rooms[0];
+    }
     
-    
-    
-    
-    
+    if (selectedRoom) {
+        let idx = rooms.indexOf(selectedRoom);
+        if (idx >= 0) roomSelect.value = idx;
+    }
+}
+
+function selectRoomFromDropdown() {
+    let roomSelect = document.getElementById('roomSelector');
+    let idx = parseInt(roomSelect.value);
+
+    if (!isNaN(idx) && rooms[idx]) {
+        selectedRoom = rooms[idx];
+        updateRoomSelector();
+    }
+}
+
+
