@@ -1,13 +1,37 @@
 <!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="UTF-8" />
-        <title>Mirror Interactive (p5.js sketch)</title>
-        <!-- Load p5.js from CDN -->
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
-    </head>
-    <body>
-        <!-- Display p5.js sketch -->
-        <script src="sketch.js"></script>
-    </body>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Mirror Interactive</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script defer src="sketch.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: sans-serif;
+        }
+        #toolbar {
+            background: #eee;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            border-bottom: 1px solid #ccc;
+        }
+        button {
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        <button onclick="addMirror()">Add Mirror</button>
+        <button onclick="addObject()">Add Object</button>
+        <button onclick="addEye()">Add Eye</button>
+        <button onclick="addRay()">Add Ray</button>
+    </div>
+</body>
 </html>

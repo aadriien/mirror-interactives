@@ -1,157 +1,200 @@
-let objPos;
-let mirrorX;
-let dragging = false;
-let offset;
-
-let eyePos;
-let draggingEye = false;
-let eyeOffset;
-
-// Start at scene 0 - will update on space
-let scene = 0; 
-
+let components = [];
+let selected = null;
+let dragOffset;
 
 function setup() {
-    createCanvas(800, 400);
-    objPos = createVector(200, 200);
-    mirrorX = 400;
-    offset = createVector(0, 0);
-    eyePos = createVector(600, 200);
-    eyeOffset = createVector(0, 0);
+    // Toolbar at 40px currently
+    createCanvas(windowWidth, windowHeight - 40); 
 }
-
 
 function draw() {
     background(255);
-    drawMirror();
     
-    if (scene === 0) {
-        drawObserver();
-        drawReflectionOfObserver();
-        drawSceneInstructions("Scene 0: Drag the 👁️ and observe its reflection.\nPress SPACE to continue.");
-    } else if (scene === 1) {
-        drawObserver();
-        drawObject();
-        drawReflectionRays();
-        drawSceneInstructions("Scene 1: Drag the 👁️ and the object.\nObserve how the rays reflect. Press SPACE to continue.");
+    // Draw real components (real room)
+    for (let comp of components) {
+        comp.display();
+    }
+    
+    // Draw virtual reflections from mirrors
+    for (let mirror of components.filter(c => c.type === 'mirror')) {
+        let mirrorX = mirror.pos.x;
+
+        for (let comp of components) {
+            if (comp.displayReflected) {
+                comp.displayReflected(mirrorX);
+            }
+        }
     }
 }
 
 
-function drawMirror() {
-    stroke(150);
-    strokeWeight(2);
-    line(mirrorX, 0, mirrorX, height);
-}
-
-function drawObserver() {
-    textSize(24);
-    textAlign(CENTER, CENTER);
-    text("👁️", eyePos.x, eyePos.y);
-}
-
-function drawReflectionOfObserver() {
-    let reflectedEye = createVector(2 * mirrorX - eyePos.x, eyePos.y);
-    
-    // Draw mirror-to-virtual-eye dashed line
-    stroke(100);
-    drawingContext.setLineDash([5, 5]);
-    line(mirrorX, eyePos.y, reflectedEye.x, reflectedEye.y);
-    drawingContext.setLineDash([]);
-    
-    // Draw real ray from eye to mirror (solid)
-    stroke(0);
-    line(eyePos.x, eyePos.y, mirrorX, eyePos.y);
-    
-    // Draw virtual 👁️ behind mirror
-    textSize(24);
-    textAlign(CENTER, CENTER);
-    text("👁️", reflectedEye.x, reflectedEye.y);
-}
-
-function drawObject() {
-    fill(255, 100, 100);
-    noStroke();
-    ellipse(objPos.x, objPos.y, 20);
-}
-
-function drawReflectionRays() {
-    let hitPoint = createVector(mirrorX, objPos.y);
-    
-    // Real ray from object to mirror
-    stroke(255, 150, 0);
-    strokeWeight(2);
-    line(objPos.x, objPos.y, hitPoint.x, hitPoint.y);
-    
-    // Reflected ray from mirror to eye
-    stroke(0, 150, 255);
-    line(hitPoint.x, hitPoint.y, eyePos.x, eyePos.y);
-    
-    // Virtual ray (dashed, eye traces it back)
-    stroke(100);
-    drawingContext.setLineDash([4, 4]);
-    let virtualRayEnd = createVector(2 * mirrorX - eyePos.x, eyePos.y);
-    line(hitPoint.x, hitPoint.y, virtualRayEnd.x, virtualRayEnd.y);
-    drawingContext.setLineDash([]);
-    
-    // Virtual image of the object (behind mirror)
-    let imagePos = createVector(2 * mirrorX - objPos.x, objPos.y);
-    noFill();
-    stroke(0);
-    strokeWeight(1);
-    drawingContext.setLineDash([5, 5]);
-    ellipse(imagePos.x, imagePos.y, 20);
-    drawingContext.setLineDash([]);
-}
-
-function drawSceneInstructions(txt) {
-    fill(0);
-    textSize(14);
-    textAlign(LEFT, TOP);
-    text(txt, 10, 10);
-}
-
-// Handle dragging of objects on canvas
 function mousePressed() {
-    if (scene >= 0) {
-        let dEye = dist(mouseX, mouseY, eyePos.x, eyePos.y);
-        if (dEye < 15) {
-            draggingEye = true;
-            eyeOffset.x = eyePos.x - mouseX;
-            eyeOffset.y = eyePos.y - mouseY;
+    for (let i = components.length - 1; i >= 0; i--) {
+        if (components[i].isHit(mouseX, mouseY)) {
+            selected = components[i];
+
+            dragOffset = createVector(
+                mouseX - selected.pos.x, 
+                mouseY - selected.pos.y
+            );
+            return;
         }
     }
-    
-    if (scene >= 1) {
-        let d = dist(mouseX, mouseY, objPos.x, objPos.y);
-        if (d < 10) {
-            dragging = true;
-            offset.x = objPos.x - mouseX;
-            offset.y = objPos.y - mouseY;
-        }
-    }
+    selected = null;
 }
 
 function mouseDragged() {
-    if (dragging) {
-        objPos.x = mouseX + offset.x;
-        objPos.y = mouseY + offset.y;
-    }
-    
-    if (draggingEye) {
-        eyePos.x = mouseX + eyeOffset.x;
-        eyePos.y = mouseY + eyeOffset.y;
+    if (selected) {
+        selected.pos.x = mouseX - dragOffset.x;
+        selected.pos.y = mouseY - dragOffset.y;
     }
 }
 
 function mouseReleased() {
-    dragging = false;
-    draggingEye = false;
+    selected = null;
 }
 
-function keyPressed() {
-    if (key === ' ') {
-        scene++;
+// ----------------------------
+// Component Constructors
+// ----------------------------
+
+function addMirror() {
+    components.push({
+        type: 'mirror',
+        pos: createVector(width / 2, height / 2),
+        display() {
+            stroke(100);
+            strokeWeight(3);
+            line(this.pos.x, 0, this.pos.x, height);
+        },
+        isHit(mx, my) {
+            return abs(mx - this.pos.x) < 5;
+        }
+    });
+}
+
+
+function addObject() {
+    components.push(new ObjectMarker(createVector(width / 2 - 100, height / 2)));
+}
+
+function addEye() {
+    components.push(new Eye(createVector(width / 2 + 100, height / 2)));
+}
+
+function addRay() {
+    components.push(new Ray(createVector(100, 100), createVector(300, 300)));
+}
+
+// ----------------------------
+// Component Classes
+// ----------------------------
+
+class Mirror {
+    constructor(pos) {
+        this.pos = pos;
+    }
+    
+    display() {
+        stroke(0);
+        strokeWeight(4);
+        line(this.pos.x, 0, this.pos.x, height);
+    }
+    
+    isHit(x, y) {
+        return abs(x - this.pos.x) < 5;
+    }
+}
+
+class ObjectMarker {
+    constructor(pos) {
+        this.pos = pos;
+        this.type = 'object';
+    }
+    
+    display() {
+        fill(255, 100, 100);
+        noStroke();
+        ellipse(this.pos.x, this.pos.y, 20);
+    }
+    
+    displayReflected(mirrorX) {
+        let reflectedX = 2 * mirrorX - this.pos.x;
+        noFill();
+        stroke(0);
+        strokeWeight(1);
+
+        drawingContext.setLineDash([4, 4]);
+        ellipse(reflectedX, this.pos.y, 20);
+        drawingContext.setLineDash([]);
+    }
+    
+    isHit(x, y) {
+        return dist(x, y, this.pos.x, this.pos.y) < 10;
+    }
+}
+
+
+class Eye {
+    constructor(pos) {
+        this.pos = pos;
+        this.type = 'eye';
+    }
+    
+    display() {
+        textSize(24);
+        textAlign(CENTER, CENTER);
+        text("👁️", this.pos.x, this.pos.y);
+    }
+    
+    displayReflected(mirrorX) {
+        let reflectedX = 2 * mirrorX - this.pos.x;
+        textSize(24);
+        textAlign(CENTER, CENTER);
+
+        drawingContext.setLineDash([4, 4]);
+        text("👁️", reflectedX, this.pos.y);
+        drawingContext.setLineDash([]);
+    }
+    
+    isHit(x, y) {
+        return dist(x, y, this.pos.x, this.pos.y) < 15;
+    }
+}
+
+
+class Ray {
+    constructor(start, end) {
+        this.pos = start.copy();
+        this.end = end.copy();
+        this.type = 'ray';
+    }
+    
+    display() {
+        stroke(255, 150, 0);
+        strokeWeight(2);
+        line(this.pos.x, this.pos.y, this.end.x, this.end.y);
+    }
+    
+    displayReflected(mirrorX) {
+        // Reflect both endpoints across mirror
+        let startR = createVector(2 * mirrorX - this.pos.x, this.pos.y);
+        let endR = createVector(2 * mirrorX - this.end.x, this.end.y);
+        
+        stroke(100);
+        strokeWeight(1.5);
+
+        drawingContext.setLineDash([5, 5]);
+        line(startR.x, startR.y, endR.x, endR.y);
+        drawingContext.setLineDash([]);
+    }
+    
+    isHit(x, y) {
+        let d1 = dist(x, y, this.pos.x, this.pos.y);
+        let d2 = dist(x, y, this.end.x, this.end.y);
+        
+        let len = dist(this.pos.x, this.pos.y, this.end.x, this.end.y);
+        return abs(d1 + d2 - len) < 5;
     }
 }
 
