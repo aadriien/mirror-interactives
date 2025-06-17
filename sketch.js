@@ -18,7 +18,7 @@ function draw() {
     // Draw virtual reflections from mirrors
     for (let mirror of components.filter(c => c.type === 'mirror')) {
         let mirrorX = mirror.pos.x;
-
+        
         for (let comp of components) {
             if (comp.displayReflected) {
                 comp.displayReflected(mirrorX);
@@ -29,19 +29,24 @@ function draw() {
 
 
 function mousePressed() {
+    // Only test components that are draggable
     for (let i = components.length - 1; i >= 0; i--) {
-        if (components[i].isHit(mouseX, mouseY)) {
-            selected = components[i];
-
-            dragOffset = createVector(
-                mouseX - selected.pos.x, 
-                mouseY - selected.pos.y
-            );
-            return;
+        let comp = components[i];
+        
+        if (typeof comp.isHit === 'function' && comp.pos) {
+            if (comp.isHit(mouseX, mouseY)) {
+                selected = comp;
+                dragOffset = createVector(
+                    mouseX - comp.pos.x,
+                    mouseY - comp.pos.y
+                );
+                return;
+            }
         }
     }
     selected = null;
 }
+
 
 function mouseDragged() {
     if (selected) {
@@ -82,9 +87,18 @@ function addEye() {
     components.push(new Eye(createVector(width / 2 + 100, height / 2)));
 }
 
-function addRay() {
-    components.push(new Ray(createVector(100, 100), createVector(300, 300)));
+function addRayFromObjectToEye() {
+    let source = components.find(c => c.type === 'object');
+    let target = components.find(c => c.type === 'eye');
+    
+    if (!source || !target) {
+        alert("Need both an object and an eye to add a ray!");
+        return;
+    }
+    
+    components.push(new RayLink(source, target));
 }
+
 
 // ----------------------------
 // Component Classes
@@ -123,7 +137,7 @@ class ObjectMarker {
         noFill();
         stroke(0);
         strokeWeight(1);
-
+        
         drawingContext.setLineDash([4, 4]);
         ellipse(reflectedX, this.pos.y, 20);
         drawingContext.setLineDash([]);
@@ -151,7 +165,7 @@ class Eye {
         let reflectedX = 2 * mirrorX - this.pos.x;
         textSize(24);
         textAlign(CENTER, CENTER);
-
+        
         drawingContext.setLineDash([4, 4]);
         text("👁️", reflectedX, this.pos.y);
         drawingContext.setLineDash([]);
@@ -164,38 +178,101 @@ class Eye {
 
 
 class Ray {
-    constructor(start, end) {
-        this.pos = start.copy();
-        this.end = end.copy();
+    constructor(source, endPos) {
+        this.source = source; 
+        this.endPos = endPos.copy(); 
         this.type = 'ray';
+    }
+    
+    get start() {
+        return this.source.pos.copy();
     }
     
     display() {
         stroke(255, 150, 0);
         strokeWeight(2);
-        line(this.pos.x, this.pos.y, this.end.x, this.end.y);
+        line(this.start.x, this.start.y, this.endPos.x, this.endPos.y);
     }
     
     displayReflected(mirrorX) {
-        // Reflect both endpoints across mirror
-        let startR = createVector(2 * mirrorX - this.pos.x, this.pos.y);
-        let endR = createVector(2 * mirrorX - this.end.x, this.end.y);
+        let startR = createVector(2 * mirrorX - this.start.x, this.start.y);
+        let endR = createVector(2 * mirrorX - this.endPos.x, this.endPos.y);
         
         stroke(100);
-        strokeWeight(1.5);
-
-        drawingContext.setLineDash([5, 5]);
+        drawingContext.setLineDash([4, 4]);
         line(startR.x, startR.y, endR.x, endR.y);
         drawingContext.setLineDash([]);
     }
     
     isHit(x, y) {
-        let d1 = dist(x, y, this.pos.x, this.pos.y);
-        let d2 = dist(x, y, this.end.x, this.end.y);
-        
-        let len = dist(this.pos.x, this.pos.y, this.end.x, this.end.y);
+        let d1 = dist(x, y, this.start.x, this.start.y);
+        let d2 = dist(x, y, this.endPos.x, this.endPos.y);
+        let len = dist(this.start.x, this.start.y, this.endPos.x, this.endPos.y);
         return abs(d1 + d2 - len) < 5;
     }
 }
 
 
+class RayLink {
+    constructor(source, target) {
+        this.source = source; // ObjectMarker
+        this.target = target; // Eye
+        this.type = 'raylink';
+    }
+    
+    display() {
+        // Direct orange ray from source to target
+        stroke(255, 150, 0);
+        strokeWeight(2);
+        line(this.source.pos.x, this.source.pos.y, this.target.pos.x, this.target.pos.y);
+        
+        // Find mirrors between source & target horizontally
+        let mirrors = components
+        .filter(c => c.type === 'mirror')
+        .filter(m => {
+            let x = m.pos.x;
+            return (x > Math.min(this.source.pos.x, this.target.pos.x)) && (x < Math.max(this.source.pos.x, this.target.pos.x));
+        })
+        .sort((a, b) => a.pos.x - b.pos.x);  
+        
+        if (mirrors.length === 0) {
+            // No mirrors, no reflected rays to draw
+            return;
+        }
+        
+        // Build points array: start with source position
+        let points = [this.source.pos.copy()];
+        
+        // Add mirror hit points (same y as source for simplicity)
+        for (let m of mirrors) {
+            points.push(createVector(m.pos.x, this.source.pos.y));
+        }
+        
+        // End with target position
+        points.push(this.target.pos.copy());
+        
+        // Draw reflected ray segments in blue
+        stroke(0, 150, 255);
+        strokeWeight(2);
+        for (let i = 0; i < points.length - 1; i++) {
+            line(points[i].x, points[i].y, points[i + 1].x, points[i + 1].y);
+        }
+        
+        // Draw virtual backtraces (dashed lines)
+        stroke(100);
+        drawingContext.setLineDash([4, 4]);
+        for (let i = 1; i < points.length - 1; i++) {
+            let mirrorX = points[i].x;
+            let nextPoint = points[i + 1];
+            let virtualX = 2 * mirrorX - nextPoint.x;
+            line(points[i].x, points[i].y, virtualX, nextPoint.y);
+        }
+        drawingContext.setLineDash([]);
+    }
+}
+    
+    
+    
+    
+    
+    
