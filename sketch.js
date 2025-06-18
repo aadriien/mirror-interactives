@@ -200,9 +200,20 @@ class ObjectMarker extends Component {
     }
 
     draw() {
-        fill(255, 100, 100);
-        noStroke();
+        const isVirtual = this.room?.isVirtual;
+
+        if (isVirtual) {
+            drawingContext.setLineDash([5, 5]); 
+            noFill();
+            stroke(255, 100, 100); 
+        } 
+        else {
+            drawingContext.setLineDash([]); 
+            fill(255, 100, 100);
+            noStroke(); 
+        }
         ellipse(this.pos.x, this.pos.y, 20);
+        drawingContext.setLineDash([]); 
     }
 
     getReflected(x, y) {
@@ -224,6 +235,30 @@ class Eye extends Component {
 
     getReflected(x, y) {
         return new Eye(x, y);
+    }
+}
+
+class AttentionGrab extends Component {
+    constructor(x, y) {
+        super(x, y);
+        this.type = 'object';
+        this.pulseTime = random(TWO_PI);
+    }
+
+    draw() {
+        this.pulseTime += 0.1;
+        let pulse = sin(this.pulseTime) * 3;
+
+        noFill();
+        stroke(255, 50, 50); 
+        strokeWeight(3);
+        ellipse(this.pos.x, this.pos.y, 50 + pulse);
+    }
+
+    getReflected(x, y) {
+        let reflected = new AttentionGrab(x, y);
+        reflected.pulseTime = 0;
+        return reflected;
     }
 }
 
@@ -307,15 +342,14 @@ function draw() {
                 for (let vroom of allVirtuals) {
                     vroom.draw();
                 }
-            } else {
-                room.drawReflected();  // your existing single layer reflection
-            }
+            } 
+            else {
+                room.drawReflected();  
         }
     }
 
-    // Draw preview ray if drawing one
+    // Draw preview ray if creating one
     if (previewRay) {
-        // Draw preview ray with partial transparency
         push();
         stroke(255, 150, 0, 150);
         strokeWeight(2);
@@ -501,6 +535,11 @@ function addEye() {
     selectedRoom.addComponent(new Eye(selectedRoom.x + 150, selectedRoom.y + 100));
 }
 
+function addAttentionGrab() {
+    if (!selectedRoom) return alert("Please select a room first.");
+    selectedRoom.addComponent(new AttentionGrab(selectedRoom.x + 50, selectedRoom.y + 100));
+}
+
 function addRay() {
     if (!selectedRoom) return alert("Please select a room first.");
     isCreatingRay = true;
@@ -559,7 +598,6 @@ function createBouncedRay(obj, eye, mirrorSide) {
         alert("Could not compute reflected ray.");
     }
 }
-
 
 function toggleReflection() {
     showReflection = !showReflection;
@@ -665,7 +703,8 @@ function getAllVirtualRooms(room, layers = 2) {
                         let reflectedX = mirrorX + dx + (side === "right" ? offset : -offset);
                         let reflectedY = comp.pos.y;
                         reflectedComp = comp.getReflected(reflectedX, reflectedY);
-                    } else {
+                    } 
+                    else {
                         let dy = mirrorY - comp.pos.y;
                         let reflectedX = comp.pos.x;
                         let reflectedY = mirrorY + dy + (side === "bottom" ? offset : -offset);
