@@ -262,6 +262,24 @@ class RayLink extends Component {
     }
 }
 
+class ReflectionPoint extends Component {
+    constructor(x, y) {
+        super(x, y);
+        this.type = 'reflection';
+    }
+
+    draw() {
+        fill(0, 200, 255);
+        noStroke();
+        ellipse(this.pos.x, this.pos.y, 10);
+    }
+
+    getReflected(x, y) {
+        return new ReflectionPoint(x, y);
+    }
+}
+
+
 // ------------------ p5 Setup --------------------
 
 function setup() {
@@ -511,12 +529,12 @@ function createBouncedRay(obj, eye, mirrorSide) {
     let intersection = lineIntersectMirror(obj.pos, reflectedEye, mirrorSide);
 
     if (intersection) {
-        let reflectionMarker = new Component(intersection.x, intersection.y);
-        reflectionMarker.type = 'reflection';
+        let reflectionMarker = new ReflectionPoint(intersection.x, intersection.y);
 
         let ray1 = new RayLink(obj, reflectionMarker);
         let ray2 = new RayLink(reflectionMarker, eye);
 
+        selectedRoom.addComponent(reflectionMarker);
         selectedRoom.addComponent(ray1);
         selectedRoom.addComponent(ray2);
     } 
