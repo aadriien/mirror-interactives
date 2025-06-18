@@ -22,7 +22,7 @@ That said, if I were to do it again, I would have prioritized more intuitive and
 
 I also would have loved to gamify the experience. One idea was to introduce walls as blockers, encouraging the user to experiment with ray positioning and mirrors to find a clear path to the object—turning the activity into more of a puzzle.
 
-Another feature I had to omit was visualizing angles themselves. I originally planned to dynamically annotate the angles formed by rays (in degrees), which would have reinforced the geometric concepts at the heart of the lesson. Ultimately, I prioritized building flexible components for creative exploration, but I would love to revisit this feature in future iterations.
+Another feature I had to omit was visualizing angles themselves. I originally planned to dynamically annotate the angles formed by rays (in degrees), which would have reinforced the geometric concepts at the heart of the lesson. Ultimately, I prioritized building flexible components for creative exploration, but I would love to revisit this feature in future iterations!
 
 
 ### 2.) How could your interactive be extended to cover more concepts in optics?
@@ -33,20 +33,20 @@ Another extension I touched on earlier is using walls as blockers, which opens t
 
 I also think color and color perception would be rich areas to explore, especially when leveraging creative tools like p5.js. For example, users could interactively adjust light sources and materials to see how different surfaces absorb or reflect light.
 
-Even sticking with reflection and mirrors, there’s plenty of room for depth here. I’d love to dig into the idea of infinite mirror reflections, challenging users to strategically place the eye (or observer) in order to locate a hidden object caught between mirror paths.
+Even sticking with reflection and mirrors, there’s plenty of room for depth. I’d love to dig into the idea of infinite mirror reflections, challenging users to strategically place the eye (or observer) in order to locate a hidden object caught between mirror paths.
 
 
 ### 3.) What parts of your interactive could be useful in other areas of STEM? Give a few examples.
 
-Several parts of my interactive could be applied across STEM fields—particularly in support of user-directed exploration, spatial reasoning, active visualization.
+Several parts of my interactive could be applied across STEM fields—particularly in support of user-directed exploration, spatial reasoning, and active visualization.
 
 The ray-drawing and mirror-reflection logic, for example, could very easily be adapted to communicate geometric concepts, as is the case with angles of incidence/reflection here. But they could also serve as an excellent starting point for computer science and physics, given that vectors, ray tracing, waves, etc are critical building blocks. 
 
-The room-based sandbox design also generalizes well, with flexibility for interchangeable and/or reusable components. The sandbox I build reminds me largely of the Excalidraw mock-ups I created when first approaching the interactive, and I can certainly envision it serving well in areas like biology, chemistry, and perhaps even medicine—where these building blocks come together in a series of little permutations. Systemic environments and molecular structure stand out to me in particular.  
+The room-based sandbox design also generalizes well, with flexibility for interchangeable and/or reusable components. The sandbox I built reminds me largely of the Excalidraw mock-ups I created when first approaching the interactive, and I can certainly envision it serving well in areas like biology, chemistry, and perhaps even medicine—where these building blocks come together in a series of little permutations. Systemic environments and molecular structures appeal to me in particular.  
 
-Beyond this, the component approach of objects, eyes, mirrors, etc stands out to me as the kind of interactive setup one may find in electrical circuit simulations or engineering design tools. With some tweaks to the components themselves, that same infrastructure could help learners explore input-output systems, case-and-effect mechanics, etc.
+Beyond this, the component approach of objects, eyes, mirrors, etc stands out to me as the kind of interactive setup one may find in electrical circuit simulations or engineering design tools. With some tweaks to the components themselves, that same infrastructure could help learners explore input-output systems, cause-and-effect mechanics, etc.
 
-Ultimately I see a lot of value in a setup thast invites open-ended problem-solving and experimentation, with immediate visual feedback for intuition. This is something my own interactive embodies, and I could see its properties proving useful well beyond optics!
+Ultimately, I see a lot of value in a setup thast invites open-ended problem-solving and experimentation, with immediate visual feedback for intuition. This is something my own interactive embodies, and I could see its properties proving useful well beyond optics!
 
 
 ### 4.) Please briefly describe your use of AI to produce the deliverable.
@@ -55,7 +55,7 @@ Given the time constraints and the encouragement to leverage AI tooling, I used 
 
 Most of my AI use centered around streamlining repetitive or boilerplate tasks, such as formatting or generating small utility functions, or otherwise organizing items on the webpage. These were things that I could confidently do myself, but delegating them allowed me to spend more time on high-impact work like design decisions, UX iteration, and feature prioritization.
 
-Simply put, I used AI to augment my workflow—without allowing it to define the interactive / alter the constructive vision. It served a practical purpose, as a kind of sidekick, with me steering the creative and technical direction throughout.
+Simply put, I used AI to augment my workflow—without allowing it to define the interactive or alter the constructive vision. It served a practical purpose, as a kind of sidekick, with me steering the creative and technical direction throughout.
 
 
 

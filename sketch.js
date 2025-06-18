@@ -57,6 +57,7 @@ class Room {
             stroke(0, 0, 255);
             strokeWeight(3);
 
+            // Keep track of mirror placement along room edges
             for (let side of this.mirrors) {
                 switch (side) {
                     case "right":
@@ -88,6 +89,7 @@ class Room {
             let virtualY = this.y;
             let mirrorX, mirrorY;
     
+            // Calculate virtual room alignment when mirroring
             switch (side) {
                 case "right":
                     mirrorX = this.x + this.w;
@@ -107,8 +109,8 @@ class Room {
                     break;
             }
     
+            // Skip creating virtual room if it overlaps with a real room
             if (isOverlappingWithRealRoom(virtualX, virtualY, this.w, this.h)) {
-                // Skip creating virtual room if it overlaps with a real room
                 continue;
             }
             
@@ -120,8 +122,7 @@ class Room {
     
             for (let comp of this.components) {
                 if (!comp.getReflected) continue;
-    
-                if (comp.type === 'ray') continue; // skip rays for now
+                if (comp.type === 'ray') continue; 
     
                 // Reflect component position based on mirror side
                 let reflectedComp;
@@ -148,7 +149,7 @@ class Room {
                 reflectedComponents.push(reflectedComp);
             }
     
-            // Now reflect rays by linking reflected sources and targets
+            // Now reflect rays by linking reflected sources & targets
             for (let comp of this.components) {
                 if (comp.type === 'ray') {
                     // Find reflected source and target based on original tracking
@@ -157,7 +158,9 @@ class Room {
     
                     if (reflectedSource && reflectedTarget) {
                         let reflectedRay = comp.getReflected(reflectedSource, reflectedTarget);
-                        reflectedRay.isVirtual = true;  // mark for dotted drawing style
+                        
+                        // Mark virtual for dotted drawing style
+                        reflectedRay.isVirtual = true;  
                         virtualRoom.addComponent(reflectedRay);
                     }
                 }
@@ -166,7 +169,6 @@ class Room {
             virtualRoom.draw();
         }
     }
-    
 
     isInside(x, y) {
         return x >= this.x && x <= this.x + this.w && y >= this.y && y <= this.y + this.h;
@@ -203,6 +205,7 @@ class ObjectMarker extends Component {
     draw() {
         const isVirtual = this.room?.isVirtual;
 
+        // Real == solid line, virtual == dotted
         if (isVirtual) {
             drawingContext.setLineDash([5, 5]); 
             noFill();
@@ -231,6 +234,8 @@ class Eye extends Component {
     draw() {
         textAlign(CENTER, CENTER);
         textSize(20);
+
+        // Use eye emoji as observer icon
         text("\uD83D\uDC41\uFE0F", this.pos.x, this.pos.y);
     }
 
@@ -247,6 +252,7 @@ class AttentionGrab extends Component {
     }
 
     draw() {
+        // Allow attention visual to pulse in real room to really highlight it
         this.pulseTime += 0.1;
         let pulse = sin(this.pulseTime) * 3;
 
@@ -284,7 +290,7 @@ class RayLink extends Component {
         strokeWeight(2);
         line(this.source.pos.x, this.source.pos.y, this.target.pos.x, this.target.pos.y);
     
-        // Draw arrowhead
+        // Draw arrowhead for ray direction
         let angle = atan2(this.target.pos.y - this.source.pos.y, this.target.pos.x - this.source.pos.x);
         let len = 10;
 
@@ -351,7 +357,7 @@ function draw() {
         }
     }
 
-    // Draw preview ray if creating one
+    // Draw preview ray if creating one / dragging
     if (previewRay) {
         push();
         stroke(255, 150, 0, 150);
@@ -364,6 +370,7 @@ function draw() {
 // -------------------- Mouse Events --------------------
 
 function mousePressed() {
+    // Handle mirror placement on real room edge
     if (placingMirror && selectedRoom && !selectedRoom.isVirtual) {
         const edge = detectEdge(selectedRoom, mouseX, mouseY);
         if (edge) {
@@ -382,6 +389,7 @@ function mousePressed() {
         }
     }
 
+    // Handle rays involving mirror reflection
     if (isCreatingBouncedRay) {
         if (bounceRayStage === 0) {
             // Stage 0: click on object
@@ -409,6 +417,7 @@ function mousePressed() {
             return;
         } 
         else if (bounceRayStage === 2) {
+            // Stage 2: click on eye
             for (let comp of selectedRoom.components) {
                 if (comp.type === 'eye' && comp.isHit(mouseX, mouseY)) {
                     bounceEnd = comp;
@@ -424,11 +433,10 @@ function mousePressed() {
         }
     }
     
-
     selectedComponent = null;
     isDraggingRoom = false;
 
-    // Check if clicking on component to start a ray drag or drag component
+    // Check if clicking on component to start a ray drag vs dragging component
     for (let room of rooms) {
         if (room.isVirtual) continue;
         for (let i = room.components.length - 1; i >= 0; i--) {
@@ -438,6 +446,7 @@ function mousePressed() {
                 selectedComponent = comp;
                 selectedRoom = room;
 
+                // If delete mode toggled, then remove item
                 if (isDeleteMode) {
                     if (confirm("Delete this component?")) {
                         room.components.splice(i, 1);
@@ -463,7 +472,7 @@ function mousePressed() {
         }
     }
 
-    // If clicked inside a room to drag the room
+    // If clicked inside a room, can drag the room
     for (let room of rooms) {
         if (!room.isVirtual && room.isInside(mouseX, mouseY)) {
             selectedRoom = room;
@@ -479,8 +488,8 @@ function mousePressed() {
 }
 
 function mouseDragged() {
+    // Update preview ray end position while dragging
     if (pendingRayStart) {
-        // Update preview ray end position while dragging
         previewRayEnd.set(mouseX, mouseY);
         previewRay.target.pos = previewRayEnd;
     }
@@ -503,6 +512,7 @@ function mouseDragged() {
 }
 
 function mouseReleased() {
+    // Create a new ray linking object & eye where applicable
     if (pendingRayStart) {
         for (let room of rooms) {
             if (room.isVirtual) continue;
@@ -578,6 +588,7 @@ function addBouncedRay() {
 function createBouncedRay(obj, eye, mirrorSide) {
     let mirrorX, mirrorY;
 
+    // Determine where ray will be hitting mirror
     switch (mirrorSide) {
         case "left":
         case "right":
@@ -603,7 +614,7 @@ function createBouncedRay(obj, eye, mirrorSide) {
         reflectedEye.y = mirrorY + dy;
     }
 
-    // Intersection point is where ray from object to reflected eye hits the mirror
+    // Intersection point == where ray from object to reflected eye hits mirror
     let intersection = lineIntersectMirror(obj.pos, reflectedEye, mirrorSide);
 
     if (intersection) {
@@ -635,6 +646,7 @@ function lineIntersectMirror(start, end, side) {
     let x1 = start.x, y1 = start.y;
     let x2 = end.x, y2 = end.y;
 
+    // Form the vector that will hit mirror between object & eye
     switch (side) {
         case "left":
         case "right": {
@@ -660,10 +672,12 @@ function lineIntersectMirror(start, end, side) {
     return null;
 }
 
-// New function to get all virtual rooms up to N layers
+// New function to get all virtual rooms up to N layers ("infinite" mirrors)
 function getAllVirtualRooms(room, layers = 2) {
     let results = [];
-    let currentLayerRooms = [room];  // start with real room
+
+    // Start with real room
+    let currentLayerRooms = [room]; 
 
     for (let layer = 0; layer < layers; layer++) {
         let nextLayerRooms = [];
@@ -695,15 +709,15 @@ function getAllVirtualRooms(room, layers = 2) {
                         break;
                 }
 
-                // Create the virtual room
+                // Create virtual room, but skip if it would overlap with real room
                 if (isOverlappingWithRealRoom(virtualX, virtualY, baseRoom.w, baseRoom.h)) {
-                    continue;  // skip this virtual room if it would overlap a real room
+                    continue;  
                 }
                 
                 let virtualRoom = new Room(virtualX, virtualY, baseRoom.w, baseRoom.h);
                 virtualRoom.isVirtual = true;                
 
-                // Reflect mirrors to the opposite side on virtual room
+                // Reflect mirrors to opposite side on virtual room
                 virtualRoom.mirrors = baseRoom.mirrors.map(side => {
                     switch(side) {
                         case "left": return "right";
@@ -715,33 +729,39 @@ function getAllVirtualRooms(room, layers = 2) {
                 }).filter(side => side !== null);
 
 
-                // Reflect components from baseRoom to virtualRoom (reuse your existing reflection logic here)
+                // Reflect components from baseRoom to virtualRoom 
                 for (let comp of baseRoom.components) {
                     if (!comp.getReflected) continue;
-                    if (comp.type === 'ray') continue; // skip rays for now
+                    if (comp.type === 'ray') continue; 
 
                     let reflectedComp;
                     if (side === "right" || side === "left") {
                         let dx = mirrorX - comp.pos.x;
+
+                        // Must use +/- offset to maintain display rooms positioning
                         let reflectedX = mirrorX + dx + (side === "right" ? offset : -offset);
                         let reflectedY = comp.pos.y;
+
                         reflectedComp = comp.getReflected(reflectedX, reflectedY);
                     } 
                     else {
                         let dy = mirrorY - comp.pos.y;
+
                         let reflectedX = comp.pos.x;
                         let reflectedY = mirrorY + dy + (side === "bottom" ? offset : -offset);
+
                         reflectedComp = comp.getReflected(reflectedX, reflectedY);
                     }
                     reflectedComp.original = comp;
                     virtualRoom.addComponent(reflectedComp);
                 }
 
-                // Handle rays reflecting
+                // Handle rays reflecting in virtual rooms
                 for (let comp of baseRoom.components) {
                     if (comp.type === 'ray') {
                         let reflectedSource = virtualRoom.components.find(c => c.original === comp.source);
                         let reflectedTarget = virtualRoom.components.find(c => c.original === comp.target);
+                        
                         if (reflectedSource && reflectedTarget) {
                             let reflectedRay = comp.getReflected(reflectedSource, reflectedTarget);
                             reflectedRay.isVirtual = true;
@@ -759,6 +779,7 @@ function getAllVirtualRooms(room, layers = 2) {
     return results;
 }
 
+// Check to ensure not overwriting real room with virtual
 function isOverlappingWithRealRoom(x, y, w, h) {
     for (let room of rooms) {
         if (!room.isVirtual) {
