@@ -1,12 +1,23 @@
 let rooms = [];
 let selectedRoom = null;
 let selectedComponent = null;
+
+let isCreatingRay = false;
+let previewRay = null;
 let pendingRayStart = null;
+let previewRayEnd = null;
 
 let dragOffset;
 let isDraggingRoom = false;
 let showReflection = true;
 let placingMirror = false;
+
+let isCreatingBouncedRay = false;
+let bounceRayStage = 0;
+let bounceStart = null;
+let bounceEnd = null;
+let bounceMirrorSide = null;
+
 
 // -------------------- Classes --------------------
 
@@ -95,34 +106,58 @@ class Room {
             let virtualRoom = new Room(virtualX, virtualY, this.w, this.h);
             virtualRoom.isVirtual = true;
     
+            // Keep track of reflected components (non-rays) for ray linking
+            let reflectedComponents = [];
+    
             for (let comp of this.components) {
-                if (comp.getReflected) {
-                    let reflectedComp;
-                    if (side === "right" || side === "left") {
-                        let dx = mirrorX - comp.pos.x;
-
-                        let reflectedX = mirrorX + dx;
-                        reflectedX += side === "right" ? offset : -offset;
-
-                        let reflectedY = comp.pos.y;
+                if (!comp.getReflected) continue;
     
-                        reflectedComp = comp.getReflected(reflectedX, reflectedY);
-                    } 
-                    else {
-                        let dy = mirrorY - comp.pos.y;
-                        let reflectedX = comp.pos.x;
-
-                        let reflectedY = mirrorY + dy;
-                        reflectedY += side === "bottom" ? offset : -offset;
+                if (comp.type === 'ray') continue; // skip rays for now
     
-                        reflectedComp = comp.getReflected(reflectedX, reflectedY);
+                // Reflect component position based on mirror side
+                let reflectedComp;
+    
+                if (side === "right" || side === "left") {
+                    let dx = mirrorX - comp.pos.x;
+                    let reflectedX = mirrorX + dx + (side === "right" ? offset : -offset);
+                    let reflectedY = comp.pos.y;
+    
+                    reflectedComp = comp.getReflected(reflectedX, reflectedY);
+                } 
+                else {
+                    let dy = mirrorY - comp.pos.y;
+                    let reflectedX = comp.pos.x;
+                    let reflectedY = mirrorY + dy + (side === "bottom" ? offset : -offset);
+    
+                    reflectedComp = comp.getReflected(reflectedX, reflectedY);
+                }
+    
+                // Track original comp to map rays later
+                reflectedComp.original = comp;
+    
+                virtualRoom.addComponent(reflectedComp);
+                reflectedComponents.push(reflectedComp);
+            }
+    
+            // Now reflect rays by linking reflected sources and targets
+            for (let comp of this.components) {
+                if (comp.type === 'ray') {
+                    // Find reflected source and target based on original tracking
+                    let reflectedSource = reflectedComponents.find(c => c.original === comp.source);
+                    let reflectedTarget = reflectedComponents.find(c => c.original === comp.target);
+    
+                    if (reflectedSource && reflectedTarget) {
+                        let reflectedRay = comp.getReflected(reflectedSource, reflectedTarget);
+                        reflectedRay.isVirtual = true;  // mark for dotted drawing style
+                        virtualRoom.addComponent(reflectedRay);
                     }
-                    virtualRoom.addComponent(reflectedComp);
                 }
             }
+    
             virtualRoom.draw();
         }
     }
+    
 
     isInside(x, y) {
         return x >= this.x && x <= this.x + this.w && y >= this.y && y <= this.y + this.h;
@@ -193,6 +228,14 @@ class RayLink extends Component {
     }
 
     draw() {
+        // Solid line for real room, or dotted for virtual
+        if (this.isVirtual) {
+            drawingContext.setLineDash([5, 5]); 
+        } 
+        else {
+            drawingContext.setLineDash([]); 
+        }
+
         stroke(255, 150, 0);
         strokeWeight(2);
         line(this.source.pos.x, this.source.pos.y, this.target.pos.x, this.target.pos.y);
@@ -209,7 +252,14 @@ class RayLink extends Component {
         noStroke();
         triangle(0, 0, -len, -len / 2, -len, len / 2);
         pop();
+
+        // Restore to regular solid line
+        drawingContext.setLineDash([]);
     }    
+
+    getReflected(reflectedSource, reflectedTarget) {
+        return new RayLink(reflectedSource, reflectedTarget);
+    }
 }
 
 // ------------------ p5 Setup --------------------
@@ -227,6 +277,16 @@ function draw() {
         room.draw();
         if (!room.isVirtual) room.drawReflected();
     }
+
+    // Draw preview ray if drawing one
+    if (previewRay) {
+        // Draw preview ray with partial transparency
+        push();
+        stroke(255, 150, 0, 150);
+        strokeWeight(2);
+        previewRay.draw();
+        pop();
+    }    
 }
 
 // -------------------- Mouse Events --------------------
@@ -237,20 +297,65 @@ function mousePressed() {
         if (edge) {
             if (!selectedRoom.mirrors.includes(edge)) {
                 selectedRoom.mirrors.push(edge);
-            } else {
+            } 
+            else {
                 alert("This edge already has a mirror.");
             }
             placingMirror = false;
             return;
-        } else {
+        } 
+        else {
             alert("Click near an edge of the selected room.");
             return;
         }
     }
 
+    if (isCreatingBouncedRay) {
+        if (bounceRayStage === 0) {
+            // Stage 0: click on object
+            for (let comp of selectedRoom.components) {
+                if (comp.type === 'object' && comp.isHit(mouseX, mouseY)) {
+                    bounceStart = comp;
+                    bounceRayStage = 1;
+                    alert("Now click on a mirror edge.");
+                    return;
+                }
+            }
+            alert("You must start by clicking an object.");
+            return;
+        } 
+        else if (bounceRayStage === 1) {
+            // Stage 1: click on mirror
+            const edge = detectEdge(selectedRoom, mouseX, mouseY);
+            if (edge && selectedRoom.mirrors.includes(edge)) {
+                bounceMirrorSide = edge;
+                bounceRayStage = 2;
+                alert("Now click on an eye.");
+            } else {
+                alert("Click on an edge that has a mirror.");
+            }
+            return;
+        } 
+        else if (bounceRayStage === 2) {
+            for (let comp of selectedRoom.components) {
+                if (comp.type === 'eye' && comp.isHit(mouseX, mouseY)) {
+                    bounceEnd = comp;
+                    createBouncedRay(bounceStart, bounceEnd, bounceMirrorSide);
+                    isCreatingBouncedRay = false;
+                    bounceRayStage = 0;
+                    return;
+                }
+            }
+            alert("Click on an eye to complete the ray.");
+            return;
+        }
+    }
+    
+
     selectedComponent = null;
     isDraggingRoom = false;
 
+    // Check if clicking on component to start a ray drag or drag component
     for (let room of rooms) {
         if (room.isVirtual) continue;
         for (let comp of room.components) {
@@ -260,23 +365,20 @@ function mousePressed() {
 
                 dragOffset = createVector(mouseX - comp.pos.x, mouseY - comp.pos.y);
                 updateRoomSelector();
+
+                // ONLY start ray drag if in ray creation mode AND clicked on object or eye
+                if (isCreatingRay && (comp.type === 'object' || comp.type === 'eye')) {
+                    pendingRayStart = comp;
+                    previewRayEnd = createVector(mouseX, mouseY);
+                    previewRay = new RayLink(pendingRayStart, { pos: previewRayEnd });
+                }             
+
                 return;
             }
         }
     }
 
-    if (selectedComponent && selectedComponent.type === 'object') {
-        pendingRayStart = selectedComponent;
-        return;
-    }
-    
-    if (pendingRayStart && selectedComponent && selectedComponent.type === 'eye') {
-        let ray = new RayLink(pendingRayStart, selectedComponent);
-        selectedRoom.addComponent(ray);
-        pendingRayStart = null;
-        return;
-    }    
-
+    // If clicked inside a room to drag the room
     for (let room of rooms) {
         if (!room.isVirtual && room.isInside(mouseX, mouseY)) {
             selectedRoom = room;
@@ -292,7 +394,13 @@ function mousePressed() {
 }
 
 function mouseDragged() {
-    if (selectedComponent && selectedComponent.room) {
+    if (pendingRayStart) {
+        // Update preview ray end position while dragging
+        previewRayEnd.set(mouseX, mouseY);
+        previewRay.target.pos = previewRayEnd;
+    }
+    
+    else if (selectedComponent && selectedComponent.room) {
         let room = selectedComponent.room;
         let newX = constrain(mouseX - dragOffset.x, room.x + 10, room.x + room.w - 10);
         let newY = constrain(mouseY - dragOffset.y, room.y + 10, room.y + room.h - 10);
@@ -308,6 +416,30 @@ function mouseDragged() {
 }
 
 function mouseReleased() {
+    if (pendingRayStart) {
+        for (let room of rooms) {
+            if (room.isVirtual) continue;
+            for (let comp of room.components) {
+                if (comp.isHit(mouseX, mouseY) && comp !== pendingRayStart) {
+                    if (
+                        (pendingRayStart.type === 'object' && comp.type === 'eye') ||
+                        (pendingRayStart.type === 'eye' && comp.type === 'object')
+                    ) {
+                        let ray = new RayLink(pendingRayStart, comp);
+                        selectedRoom.addComponent(ray);
+                        break;
+                    }
+                }
+            }
+        }
+        previewRay = null;
+        pendingRayStart = null;
+        previewRayEnd = null;
+
+        // Exit ray creation mode after one ray is created (or canceled)
+        isCreatingRay = false;
+    }
+
     selectedComponent = null;
     isDraggingRoom = false;
 }
@@ -336,16 +468,63 @@ function addEye() {
 
 function addRay() {
     if (!selectedRoom) return alert("Please select a room first.");
-    let obj = selectedRoom.components.find(c => c.type === 'object');
-    let eye = selectedRoom.components.find(c => c.type === 'eye');
+    isCreatingRay = true;
+    alert("Ray creation mode: click on an object or eye and drag to create a ray.");
+}
 
-    if (obj && eye) {
-        selectedRoom.addComponent(new RayLink(obj, eye));
+function addBouncedRay() {
+    if (!selectedRoom) return alert("Please select a room.");
+    isCreatingBouncedRay = true;
+    bounceRayStage = 0;
+    alert("Click on an object, then a mirror edge, then the eye.");
+}
+
+function createBouncedRay(obj, eye, mirrorSide) {
+    let mirrorX, mirrorY;
+
+    switch (mirrorSide) {
+        case "left":
+        case "right":
+            mirrorX = (mirrorSide === "left") ? selectedRoom.x : selectedRoom.x + selectedRoom.w;
+            mirrorY = 0;
+            break;
+        case "top":
+        case "bottom":
+            mirrorY = (mirrorSide === "top") ? selectedRoom.y : selectedRoom.y + selectedRoom.h;
+            mirrorX = 0;
+            break;
+    }
+
+    // Reflect eye across mirror
+    let reflectedEye = eye.pos.copy();
+
+    if (mirrorSide === "left" || mirrorSide === "right") {
+        let dx = mirrorX - eye.pos.x;
+        reflectedEye.x = mirrorX + dx;
     } 
     else {
-        alert("You need an object and an eye in the room.");
+        let dy = mirrorY - eye.pos.y;
+        reflectedEye.y = mirrorY + dy;
+    }
+
+    // Intersection point is where ray from object to reflected eye hits the mirror
+    let intersection = lineIntersectMirror(obj.pos, reflectedEye, mirrorSide);
+
+    if (intersection) {
+        let reflectionMarker = new Component(intersection.x, intersection.y);
+        reflectionMarker.type = 'reflection';
+
+        let ray1 = new RayLink(obj, reflectionMarker);
+        let ray2 = new RayLink(reflectionMarker, eye);
+
+        selectedRoom.addComponent(ray1);
+        selectedRoom.addComponent(ray2);
+    } 
+    else {
+        alert("Could not compute reflected ray.");
     }
 }
+
 
 function toggleReflection() {
     showReflection = !showReflection;
@@ -355,6 +534,36 @@ function startPlacingMirror() {
     if (!selectedRoom) return alert("Please select a room first.");
     placingMirror = true;
 }
+
+function lineIntersectMirror(start, end, side) {
+    let x1 = start.x, y1 = start.y;
+    let x2 = end.x, y2 = end.y;
+
+    switch (side) {
+        case "left":
+        case "right": {
+            let mirrorX = (side === "left") ? selectedRoom.x : selectedRoom.x + selectedRoom.w;
+            let t = (mirrorX - x1) / (x2 - x1);
+            if (t >= 0 && t <= 1) {
+                let y = y1 + t * (y2 - y1);
+                return createVector(mirrorX, y);
+            }
+            break;
+        }
+        case "top":
+        case "bottom": {
+            let mirrorY = (side === "top") ? selectedRoom.y : selectedRoom.y + selectedRoom.h;
+            let t = (mirrorY - y1) / (y2 - y1);
+            if (t >= 0 && t <= 1) {
+                let x = x1 + t * (x2 - x1);
+                return createVector(x, mirrorY);
+            }
+            break;
+        }
+    }
+    return null;
+}
+
 
 // -------------------- Room Selector --------------------
 
@@ -400,3 +609,4 @@ function detectEdge(room, x, y) {
         return "bottom";
     return null;
 }
+
