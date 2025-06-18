@@ -389,7 +389,7 @@ function mousePressed() {
                 if (comp.type === 'object' && comp.isHit(mouseX, mouseY)) {
                     bounceStart = comp;
                     bounceRayStage = 1;
-                    alert("Now click on a mirror edge.");
+                    alert("Nice! Now click on a mirror edge.");
                     return;
                 }
             }
@@ -402,7 +402,7 @@ function mousePressed() {
             if (edge && selectedRoom.mirrors.includes(edge)) {
                 bounceMirrorSide = edge;
                 bounceRayStage = 2;
-                alert("Now click on an eye.");
+                alert("Great! Now click on an eye.");
             } else {
                 alert("Click on an edge that has a mirror.");
             }
@@ -415,6 +415,7 @@ function mousePressed() {
                     createBouncedRay(bounceStart, bounceEnd, bounceMirrorSide);
                     isCreatingBouncedRay = false;
                     bounceRayStage = 0;
+                    alert("Nice work! You created a valid reflected ray. Where should it hit the mirror?");
                     return;
                 }
             }
@@ -488,11 +489,13 @@ function mouseDragged() {
         let room = selectedComponent.room;
         let newX = constrain(mouseX - dragOffset.x, room.x + 10, room.x + room.w - 10);
         let newY = constrain(mouseY - dragOffset.y, room.y + 10, room.y + room.h - 10);
+
         selectedComponent.pos.set(newX, newY);
     } 
     else if (isDraggingRoom && selectedRoom) {
         let newX = mouseX - dragOffset.x;
         let newY = mouseY - dragOffset.y;
+
         let dx = newX - selectedRoom.x;
         let dy = newY - selectedRoom.y;
         selectedRoom.move(dx, dy);
@@ -562,7 +565,7 @@ function deleteItem() {
 function addRay() {
     if (!selectedRoom) return alert("Please select a room first.");
     isCreatingRay = true;
-    alert("Ray creation mode: click on an object or eye and drag to create a ray.");
+    alert("Ray creation mode: click on an object or eye and drag to create a ray. Can you make light travel to the eye from the object?");
 }
 
 function addBouncedRay() {
@@ -625,6 +628,7 @@ function toggleReflection() {
 function startPlacingMirror() {
     if (!selectedRoom) return alert("Please select a room first.");
     placingMirror = true;
+    alert("Mirror placing mode: click on one side of the real room to place a mirror.");
 }
 
 function lineIntersectMirror(start, end, side) {
