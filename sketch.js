@@ -1,6 +1,7 @@
 let rooms = [];
 let selectedRoom = null;
 let selectedComponent = null;
+let isDeleteMode = false;
 
 let isCreatingRay = false;
 let previewRay = null;
@@ -339,12 +340,14 @@ function draw() {
         if (!room.isVirtual) {
             if (showAllVirtualRooms) {
                 let allVirtuals = getAllVirtualRooms(room, MAX_VIRTUAL_LAYERS);
+
                 for (let vroom of allVirtuals) {
                     vroom.draw();
                 }
             } 
             else {
                 room.drawReflected();  
+            }
         }
     }
 
@@ -427,10 +430,22 @@ function mousePressed() {
     // Check if clicking on component to start a ray drag or drag component
     for (let room of rooms) {
         if (room.isVirtual) continue;
-        for (let comp of room.components) {
+        for (let i = room.components.length - 1; i >= 0; i--) {
+            let comp = room.components[i];
+
             if (comp.isHit(mouseX, mouseY)) {
                 selectedComponent = comp;
                 selectedRoom = room;
+
+                if (isDeleteMode) {
+                    if (confirm("Delete this component?")) {
+                        room.components.splice(i, 1);
+                        selectedComponent = null;
+                        pendingRayStart = null;
+                    }
+                    isDeleteMode = false;
+                    return;
+                }
 
                 dragOffset = createVector(mouseX - comp.pos.x, mouseY - comp.pos.y);
                 updateRoomSelector();
@@ -440,7 +455,7 @@ function mousePressed() {
                     pendingRayStart = comp;
                     previewRayEnd = createVector(mouseX, mouseY);
                     previewRay = new RayLink(pendingRayStart, { pos: previewRayEnd });
-                }             
+                }
 
                 return;
             }
@@ -538,6 +553,10 @@ function addEye() {
 function addAttentionGrab() {
     if (!selectedRoom) return alert("Please select a room first.");
     selectedRoom.addComponent(new AttentionGrab(selectedRoom.x + 50, selectedRoom.y + 100));
+}
+
+function deleteItem() {
+    isDeleteMode = true;
 }
 
 function addRay() {
