@@ -18,6 +18,9 @@ let bounceStart = null;
 let bounceEnd = null;
 let bounceMirrorSide = null;
 
+let showAllVirtualRooms = false;
+const MAX_VIRTUAL_LAYERS = 3;
+
 
 // -------------------- Classes --------------------
 
@@ -103,8 +106,13 @@ class Room {
                     break;
             }
     
+            if (isOverlappingWithRealRoom(virtualX, virtualY, this.w, this.h)) {
+                // Skip creating virtual room if it overlaps with a real room
+                continue;
+            }
+            
             let virtualRoom = new Room(virtualX, virtualY, this.w, this.h);
-            virtualRoom.isVirtual = true;
+            virtualRoom.isVirtual = true;            
     
             // Keep track of reflected components (non-rays) for ray linking
             let reflectedComponents = [];
@@ -293,7 +301,16 @@ function draw() {
     background(240);
     for (let room of rooms) {
         room.draw();
-        if (!room.isVirtual) room.drawReflected();
+        if (!room.isVirtual) {
+            if (showAllVirtualRooms) {
+                let allVirtuals = getAllVirtualRooms(room, MAX_VIRTUAL_LAYERS);
+                for (let vroom of allVirtuals) {
+                    vroom.draw();
+                }
+            } else {
+                room.drawReflected();  // your existing single layer reflection
+            }
+        }
     }
 
     // Draw preview ray if drawing one
@@ -580,6 +597,120 @@ function lineIntersectMirror(start, end, side) {
         }
     }
     return null;
+}
+
+// New function to get all virtual rooms up to N layers
+function getAllVirtualRooms(room, layers = 2) {
+    let results = [];
+    let currentLayerRooms = [room];  // start with real room
+
+    for (let layer = 0; layer < layers; layer++) {
+        let nextLayerRooms = [];
+        for (let baseRoom of currentLayerRooms) {
+            for (let side of baseRoom.mirrors) {
+                // Calculate virtual room position relative to baseRoom
+                let offset = 20;
+
+                let virtualX = baseRoom.x;
+                let virtualY = baseRoom.y;
+                let mirrorX, mirrorY;
+
+                switch (side) {
+                    case "right":
+                        mirrorX = baseRoom.x + baseRoom.w;
+                        virtualX = mirrorX + offset;
+                        break;
+                    case "left":
+                        mirrorX = baseRoom.x;
+                        virtualX = mirrorX - baseRoom.w - offset;
+                        break;
+                    case "top":
+                        mirrorY = baseRoom.y;
+                        virtualY = mirrorY - baseRoom.h - offset;
+                        break;
+                    case "bottom":
+                        mirrorY = baseRoom.y + baseRoom.h;
+                        virtualY = mirrorY + offset;
+                        break;
+                }
+
+                // Create the virtual room
+                if (isOverlappingWithRealRoom(virtualX, virtualY, baseRoom.w, baseRoom.h)) {
+                    continue;  // skip this virtual room if it would overlap a real room
+                }
+                
+                let virtualRoom = new Room(virtualX, virtualY, baseRoom.w, baseRoom.h);
+                virtualRoom.isVirtual = true;                
+
+                // Reflect mirrors to the opposite side on virtual room
+                virtualRoom.mirrors = baseRoom.mirrors.map(side => {
+                    switch(side) {
+                        case "left": return "right";
+                        case "right": return "left";
+                        case "top": return "bottom";
+                        case "bottom": return "top";
+                        default: return null;
+                    }
+                }).filter(side => side !== null);
+
+
+                // Reflect components from baseRoom to virtualRoom (reuse your existing reflection logic here)
+                for (let comp of baseRoom.components) {
+                    if (!comp.getReflected) continue;
+                    if (comp.type === 'ray') continue; // skip rays for now
+
+                    let reflectedComp;
+                    if (side === "right" || side === "left") {
+                        let dx = mirrorX - comp.pos.x;
+                        let reflectedX = mirrorX + dx + (side === "right" ? offset : -offset);
+                        let reflectedY = comp.pos.y;
+                        reflectedComp = comp.getReflected(reflectedX, reflectedY);
+                    } else {
+                        let dy = mirrorY - comp.pos.y;
+                        let reflectedX = comp.pos.x;
+                        let reflectedY = mirrorY + dy + (side === "bottom" ? offset : -offset);
+                        reflectedComp = comp.getReflected(reflectedX, reflectedY);
+                    }
+                    reflectedComp.original = comp;
+                    virtualRoom.addComponent(reflectedComp);
+                }
+
+                // Handle rays reflecting
+                for (let comp of baseRoom.components) {
+                    if (comp.type === 'ray') {
+                        let reflectedSource = virtualRoom.components.find(c => c.original === comp.source);
+                        let reflectedTarget = virtualRoom.components.find(c => c.original === comp.target);
+                        if (reflectedSource && reflectedTarget) {
+                            let reflectedRay = comp.getReflected(reflectedSource, reflectedTarget);
+                            reflectedRay.isVirtual = true;
+                            virtualRoom.addComponent(reflectedRay);
+                        }
+                    }
+                }
+
+                results.push(virtualRoom);
+                nextLayerRooms.push(virtualRoom);
+            }
+        }
+        currentLayerRooms = nextLayerRooms;
+    }
+    return results;
+}
+
+function isOverlappingWithRealRoom(x, y, w, h) {
+    for (let room of rooms) {
+        if (!room.isVirtual) {
+            if (
+                x < room.x + room.w &&
+                x + w > room.x &&
+                y < room.y + room.h &&
+                y + h > room.y
+            ) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 
