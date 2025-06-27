@@ -9,6 +9,6 @@ Link to live site ——>  **[https://aadriien.github.io/mirror-interactives](ht
 
 🧱 Sandbox Environment   |   🪩 Infinite Mirrors  
 :-------------------------:|:-------------------------:
-![Example image of sandbox environment](./example-media/sandbox-environment.png)  |  ![Example image of infinite virtual rooms](./example-media/virtual-rooms.png)
+![Example image of sandbox environment](./example-media/sandbox-environment.png)  |  ![Example image of infinite virtual rooms](./example-media/infinite-mirrors.png)
 
 
